@@ -32,47 +32,21 @@ export class GoogleDocsService {
 
     const startTime = Date.now();
 
-    // Fetch the document to find the end index
-    const doc = await docs.documents.get({
+    await docs.documents.batchUpdate({
       documentId: params.documentId,
+      requestBody: {
+        requests: [
+          {
+            insertText: {
+              endOfSegmentLocation: {
+                segmentId: "", // Empty string for the document body
+              },
+              text: params.content,
+            },
+          },
+        ],
+      },
     });
-
-    const body = doc.data.body;
-    if (!body || !body.content) {
-      // Empty doc body — insert at index 1 (after the implicit newline)
-      await docs.documents.batchUpdate({
-        documentId: params.documentId,
-        requestBody: {
-          requests: [
-            {
-              insertText: {
-                location: { index: 1 },
-                text: params.content,
-              },
-            },
-          ],
-        },
-      });
-    } else {
-      // Find the end index of the document body.
-      // The last element's endIndex gives us the document length.
-      const lastElement = body.content[body.content.length - 1];
-      const endIndex = (lastElement?.endIndex || 1) - 1;
-
-      await docs.documents.batchUpdate({
-        documentId: params.documentId,
-        requestBody: {
-          requests: [
-            {
-              insertText: {
-                location: { index: endIndex },
-                text: params.content,
-              },
-            },
-          ],
-        },
-      });
-    }
 
     const durationMs = Date.now() - startTime;
 

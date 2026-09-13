@@ -34,17 +34,7 @@ describe("GoogleDocsService", () => {
   });
 
   describe("appendContent", () => {
-    it("should append content to a non-empty document", async () => {
-      mockDocsGet.mockResolvedValueOnce({
-        data: {
-          body: {
-            content: [
-              { endIndex: 1 },
-              { endIndex: 50 },
-            ],
-          },
-        },
-      });
+    it("should append content using endOfSegmentLocation", async () => {
       mockDocsBatchUpdate.mockResolvedValueOnce({});
 
       const result = await service.appendContent(mockAuth, {
@@ -56,14 +46,14 @@ describe("GoogleDocsService", () => {
       expect(result.documentId).toBe("doc-123");
       expect(result.message).toBe("Content appended successfully.");
 
-      // Should insert at endIndex - 1 of last element
+      // Should insert at endOfSegmentLocation
       expect(mockDocsBatchUpdate).toHaveBeenCalledWith({
         documentId: "doc-123",
         requestBody: {
           requests: [
             {
               insertText: {
-                location: { index: 49 },
+                endOfSegmentLocation: { segmentId: "" },
                 text: "Appended text",
               },
             },
@@ -72,39 +62,8 @@ describe("GoogleDocsService", () => {
       });
     });
 
-    it("should handle empty document body", async () => {
-      mockDocsGet.mockResolvedValueOnce({
-        data: {
-          body: null,
-        },
-      });
-      mockDocsBatchUpdate.mockResolvedValueOnce({});
-
-      const result = await service.appendContent(mockAuth, {
-        documentId: "empty-doc",
-        content: "First content",
-      });
-
-      expect(result.success).toBe(true);
-
-      // Should insert at index 1 for empty doc
-      expect(mockDocsBatchUpdate).toHaveBeenCalledWith({
-        documentId: "empty-doc",
-        requestBody: {
-          requests: [
-            {
-              insertText: {
-                location: { index: 1 },
-                text: "First content",
-              },
-            },
-          ],
-        },
-      });
-    });
-
-    it("should throw on document not found (404)", async () => {
-      mockDocsGet.mockRejectedValueOnce({
+    it("should throw on document not found (404) during batchUpdate", async () => {
+      mockDocsBatchUpdate.mockRejectedValueOnce({
         code: 404,
         message: "Requested entity was not found.",
       });
@@ -120,8 +79,8 @@ describe("GoogleDocsService", () => {
       });
     });
 
-    it("should throw on permission denied (403)", async () => {
-      mockDocsGet.mockRejectedValueOnce({
+    it("should throw on permission denied (403) during batchUpdate", async () => {
+      mockDocsBatchUpdate.mockRejectedValueOnce({
         code: 403,
         message: "The caller does not have permission.",
       });
