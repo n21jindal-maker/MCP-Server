@@ -67,11 +67,19 @@ class GoogleAuthService {
           this.oauth2Client.setCredentials(credentials);
           await this.saveTokens(credentials as StoredTokens);
           logger.info("auth", "Token refreshed successfully.");
-        } catch {
+        } catch (error) {
           logger.warn(
             "auth",
-            "Token refresh failed, initiating new consent flow."
+            "Token refresh failed, attempting to initiate new consent flow."
           );
+          
+          if (process.env.RAILWAY_ENVIRONMENT || process.env.GOOGLE_OAUTH_TOKEN) {
+            throw new McpToolError(
+              ErrorCode.AUTHENTICATION_REQUIRED,
+              "Token refresh failed. Interactive consent flow is not supported in this environment. Please generate a new token locally and update the GOOGLE_OAUTH_TOKEN environment variable."
+            );
+          }
+          
           await this.initiateConsentFlow();
         }
       }
@@ -80,6 +88,13 @@ class GoogleAuthService {
     }
 
     // No saved tokens — need interactive consent
+    if (process.env.RAILWAY_ENVIRONMENT || process.env.GOOGLE_OAUTH_TOKEN) {
+      throw new McpToolError(
+        ErrorCode.AUTHENTICATION_REQUIRED,
+        "No saved tokens found. Interactive consent flow is not supported in this environment. Please generate a new token locally and update the GOOGLE_OAUTH_TOKEN environment variable."
+      );
+    }
+
     logger.info("auth", "No saved tokens found, initiating consent flow.");
     await this.initiateConsentFlow();
     return this.oauth2Client;
