@@ -158,6 +158,25 @@ class GoogleAuthService {
         }
       });
 
+      server.on("error", (err: Error & { code?: string }) => {
+        logger.error("auth", `Local auth server error: ${err.message}`);
+        if (err.code === "EADDRINUSE") {
+          reject(
+            new McpToolError(
+              ErrorCode.AUTHENTICATION_REQUIRED,
+              `Port ${port} is already in use. Cannot start interactive consent flow. Please generate tokens locally and provide them via GOOGLE_OAUTH_TOKEN.`
+            )
+          );
+        } else {
+          reject(
+            new McpToolError(
+              ErrorCode.AUTHENTICATION_REQUIRED,
+              `Failed to start local auth server: ${err.message}`
+            )
+          );
+        }
+      });
+
       server.listen(port, () => {
         logger.info("auth", `Waiting for OAuth callback on port ${port}...`);
       });
@@ -176,17 +195,25 @@ class GoogleAuthService {
   }
 
   private async loadTokens(): Promise<StoredTokens | null> {
-    try {
-      if (process.env.GOOGLE_OAUTH_TOKEN) {
+    if (process.env.GOOGLE_OAUTH_TOKEN) {
+      try {
         logger.debug("auth", "Loading tokens from GOOGLE_OAUTH_TOKEN environment variable");
         return JSON.parse(process.env.GOOGLE_OAUTH_TOKEN) as StoredTokens;
+      } catch (err) {
+        logger.error("auth", "Failed to parse GOOGLE_OAUTH_TOKEN", { error: err instanceof Error ? err.message : String(err) });
+        throw new McpToolError(
+          ErrorCode.AUTHENTICATION_REQUIRED,
+          `Invalid GOOGLE_OAUTH_TOKEN format. It must be valid JSON: ${err instanceof Error ? err.message : String(err)}`
+        );
       }
+    }
 
+    try {
       const tokenPath = path.resolve(this.tokenStorePath);
       const data = await fs.readFile(tokenPath, "utf-8");
       return JSON.parse(data) as StoredTokens;
     } catch (err) {
-      logger.debug("auth", "No saved tokens found in environment or file.");
+      logger.debug("auth", "No saved tokens found in file.");
       return null;
     }
   }
